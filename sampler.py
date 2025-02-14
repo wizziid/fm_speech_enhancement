@@ -1,6 +1,9 @@
 import torch
-import utils
+
 from torchdiffeq import odeint_adjoint as odeint
+
+import utils
+
 
 class StochasticSampler:
 
