@@ -1,0 +1,11 @@
+checkpoints/
+data/
+artefacts/
+venv/
+__pycache__/
+todo.txt
+checkpoints/*
+data/*
+artefacts/*
+venv/*
+__pycache__/*
