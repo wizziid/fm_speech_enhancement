@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.checkpoint as checkpoint
 
-
 class Network(nn.Module):
     """
     # 2 -> 128 -> 128 -> 256 -> 256 -> 512 (self att) -> 512 (self att) -> 1024 (self att) -> 1024 (self att)
@@ -11,9 +10,15 @@ class Network(nn.Module):
 
     # residual block preserves dimenisonality of spectrogram but increases/decreases channels.
     # up and down sampling halves freq * time (pixels)
+
+
+    Activations? gilu or silu instead of relu?
+
+    Normalisation layers? Group or layer instead of batch?
+
     """
 
-    def __init__(self, input_shape, base_channels=64, embedding_dim= 512, n_residual_blocks=6, n_att_blocks=2, device="cpu"):
+    def __init__(self, input_shape, base_channels=128, embedding_dim= 512, n_residual_blocks=6, n_att_blocks=4, device="cpu"):
         super().__init__()
 
         self.device = torch.device(device)

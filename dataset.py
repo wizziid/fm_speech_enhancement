@@ -25,6 +25,7 @@ class GetDataset:
         # make more data
         self.dataset = LIBRISPEECH(root=root, url=url, download=True)
         self.device = device
+        self.noise = 0.1
         # STFT PARAMS
         self.sample_rate = sample_rate
         self.n_fft = n_fft
@@ -76,7 +77,7 @@ class GetDataset:
             waveform = waveform[:, :self.max_length]
 
         # Create noised sample and mask - Would it make more sense to directly apply to spectrogram?
-        noise = torch.randn_like(waveform) * random.uniform(0, 0.5)
+        noise = torch.randn_like(waveform) * random.uniform(0.05, self.noise)
         noised_waveform = waveform + noise
         mask = (noise != 0).float()
         # convert original, noised and mask into normalised complex stft
@@ -90,8 +91,8 @@ class GetDataset:
         return spectrogram, noised_spectrogram, mask_spectrogram
 
     def get_dataloader(self, batch_size=32, shuffle=True):
-        clamped = Subset(self, range(256))
-        return DataLoader(clamped, batch_size=batch_size, shuffle=shuffle)
+        #clamped = Subset(self, range(256))
+        #return DataLoader(clamped, batch_size=batch_size, shuffle=shuffle)
         return DataLoader(self, batch_size=batch_size, shuffle=shuffle)
 
     def plot_spectrogram(self, spectrogram, title="Spectrogram"):

@@ -41,7 +41,7 @@ def main():
     sampler = StochasticSampler(data_shape=dataset.real_shape, vector_field=vector_field_net, device=device)
     optimizer = torch.optim.Adam(list(vector_field_net.parameters()), lr=1e-4)
     total_params = sum(p.numel() for p in vector_field_net.parameters())
-    utils.print_memory("Model Loaded")
+    utils.print_memory("Model initialised")
     print(f"Total Model Parameters: {total_params:,}")
 
     # Load previous checkpoint if exists
@@ -88,7 +88,7 @@ def main():
             vector_field_net.train()
             break
 
-        utils.save_model(vector_field_net, optimizer, (epoch + 1), f"checkpoints/vector_field.pth")
+        utils.save_model(vector_field_net, optimizer, (epoch + 1), model_path)
 
 if __name__ == "__main__":
     main()
