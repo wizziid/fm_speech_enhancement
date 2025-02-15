@@ -3,6 +3,7 @@ import os
 
 import torch
 import torch.utils.data
+import torchaudio
 
 from dataset import GetDataset
 from interpolant import Interpolant

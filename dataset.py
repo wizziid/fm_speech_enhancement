@@ -4,6 +4,7 @@ import random
 import matplotlib.pyplot as plt
 import sounddevice as sd
 import torch
+import torchaudio
 import torchaudio.transforms as T
 from torch.utils.data import DataLoader, Subset
 from torchaudio.datasets import LIBRISPEECH
@@ -19,13 +20,12 @@ class GetDataset:
     
     Have hardcoded sample rate to specifically output time bins that are powers of 2...
     """
-
+    
     def __init__(self, root="data/", url="train-clean-100", sample_rate=16000, n_fft=126, hop_length=125, win_length=126, max_length_seconds=2, device="cpu"):
         os.makedirs(root, exist_ok=True)
         # make more data
         self.dataset = LIBRISPEECH(root=root, url=url, download=True)
         self.device = device
-        self.noise = 0.1
         # STFT PARAMS
         self.sample_rate = sample_rate
         self.n_fft = n_fft
@@ -37,6 +37,8 @@ class GetDataset:
         # NORMALISATION PARAMS
         self.alpha = 0.5
         self.beta = 1
+        # NOISE PARAMS
+        self.snr_db = 1.5
 
         self.stft = T.Spectrogram(
             n_fft=n_fft,
@@ -55,8 +57,6 @@ class GetDataset:
         self.complex_shape = (1, *self.example_spec.shape[1:])  # Complex (Batch, 1, Frequency, Time)
         self.real_shape = (2, *self.example_spec.shape[1:])  # Real (Batch, 2, Frequency, Time)
     
-
-
     def __len__(self):
         return len(self.dataset)
     
@@ -76,10 +76,25 @@ class GetDataset:
         else:
             waveform = waveform[:, :self.max_length]
 
-        # Create noised sample and mask - Would it make more sense to directly apply to spectrogram?
-        noise = torch.randn_like(waveform) * random.uniform(0.05, self.noise)
+        # Add Noise    
+        noise = torch.randn_like(waveform) * (torch.std(waveform) / (self.snr_db + 1e-10))
+        signal_power = torch.mean(waveform ** 2)
+        noise_power = torch.mean(noise ** 2)
+        # print(f"signal power {signal_power}, noise power {noise_power}, mean wav {waveform.mean()}, wav min {waveform.min()}, wav max {waveform.max()}")
+        snr_linear = 10 ** (self.snr_db / 10)
+        eps = 1e-10
+        noise = noise * torch.sqrt(signal_power / (snr_linear * (noise_power + eps)))
         noised_waveform = waveform + noise
         mask = (noise != 0).float()
+
+        #print(f"s_power {signal_power}, n_power {noise_power}")
+        #print(f"wav min {waveform.min()}, wav max {waveform.max()}")
+        #print(f"noise min {noise.min()}, noise max {noise.max()}")
+        #print(f"Noised wav min {noised_waveform.min()}, noised wav max {noised_waveform.max()}")   
+        #print() 
+        #torchaudio.save("artefacts/noised.wav", noised_waveform, sample_rate=16000)
+        #torchaudio.save("artefacts/original.wav", waveform, sample_rate=16000)
+
         # convert original, noised and mask into normalised complex stft
         spectrogram = self.stft(waveform)
         spectrogram = self.complex_normalize(spectrogram)
@@ -91,8 +106,8 @@ class GetDataset:
         return spectrogram, noised_spectrogram, mask_spectrogram
 
     def get_dataloader(self, batch_size=32, shuffle=True):
-        #clamped = Subset(self, range(256))
-        #return DataLoader(clamped, batch_size=batch_size, shuffle=shuffle)
+        clamped = Subset(self, range(256))
+        return DataLoader(clamped, batch_size=batch_size, shuffle=shuffle)
         return DataLoader(self, batch_size=batch_size, shuffle=shuffle)
 
     def plot_spectrogram(self, spectrogram, title="Spectrogram"):

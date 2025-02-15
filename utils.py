@@ -14,7 +14,8 @@ Samples, denormalises, converts back to complex spectrogram and wav form for sav
 def save_sample(dataset, sampler, epoch, batch, target, iterations=100):
     batch_size = len(batch)
     sampled_spectrograms = sampler.sample(x0=batch, iterations=iterations, batch_size=batch_size).detach().cpu()
-    time_indices = torch.linspace(0, iterations - 1, steps=4).long()
+    time_indices = torch.round(torch.linspace(0, iterations - 1, steps=4)).long()
+    print(time_indices)
     fig, axes = plt.subplots(batch_size, 5, figsize=(15, 10))
 
     # Row = sample, column = time
@@ -28,15 +29,15 @@ def save_sample(dataset, sampler, epoch, batch, target, iterations=100):
             if row == 0 and col == 0:
                 # output
                 waveform = dataset.inverse_stft(spectrogram)
-                audio_path = f"artefacts/wav/sample_audio_epoch_{epoch+1}_sample_{row}_out.wav"
+                audio_path = f"artefacts/wav/{epoch+1}_sample_{row}_out.wav"
                 torchaudio.save(audio_path, waveform, dataset.sample_rate)
                 # input
-                input_waveform = dataset.inverse_stft(dataset.real_to_complex(batch[0].cpu().unsqueeze(0)))
-                input_path = f"artefacts/wav/sample_audio_epoch_{epoch+1}_sample_{row}_input.wav"
+                input_waveform = dataset.inverse_stft(dataset.complex_denormalize(dataset.real_to_complex(batch[0].cpu().unsqueeze(0))))
+                input_path = f"artefacts/wav/{epoch+1}_sample_{row}_input.wav"
                 torchaudio.save(input_path, input_waveform, dataset.sample_rate)
                 # Target
                 target_waveform = dataset.inverse_stft(dataset.complex_denormalize(target[0]))
-                target_path = f"artefacts/wav/sample_audio_epoch_{epoch+1}_sample_{row}_target.wav"
+                target_path = f"artefacts/wav/{epoch+1}_sample_{row}_target.wav"
                 torchaudio.save(target_path, target_waveform, dataset.sample_rate)
 
             # magnitudes
