@@ -33,14 +33,14 @@ def main():
 
     # Get dataset and dataloader
     dataset = GetDataset("data/", device=device)
-    dataloader = dataset.get_dataloader(batch_size=16)
+    dataloader = dataset.get_dataloader(batch_size=32)
     dataset.print_info()
 
     # Initialize network, interpolant, and sampler
     vector_field_net = Network(input_shape=dataset.real_shape, device=device)
     interpolant = Interpolant()
     sampler = StochasticSampler(data_shape=dataset.real_shape, vector_field=vector_field_net, device=device)
-    optimizer = torch.optim.Adam(list(vector_field_net.parameters()), lr=1e-4)
+    optimizer = torch.optim.Adam(list(vector_field_net.parameters()), lr=1e-5)
     total_params = sum(p.numel() for p in vector_field_net.parameters())
     utils.print_memory("Model initialised")
     print(f"Total Model Parameters: {total_params:,}")
@@ -75,7 +75,7 @@ def main():
         print(f"Epoch {epoch}: Loss = {epoch_loss / len(dataloader)}")
         losses.append(epoch_loss/len(dataloader))
 
-        if epoch > 10:
+        if epoch > 5:
             utils.plot_losses(losses, epoch)
     
         # enhance a couple of examples from the dataloader

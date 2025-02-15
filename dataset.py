@@ -20,7 +20,7 @@ class GetDataset:
     
     Have hardcoded sample rate to specifically output time bins that are powers of 2...
     """
-    
+
     def __init__(self, root="data/", url="train-clean-100", sample_rate=16000, n_fft=126, hop_length=125, win_length=126, max_length_seconds=2, device="cpu"):
         os.makedirs(root, exist_ok=True)
         # make more data
@@ -74,7 +74,14 @@ class GetDataset:
             pad = self.max_length - waveform.shape[1]
             waveform = torch.nn.functional.pad(waveform, (0, pad))
         else:
-            waveform = waveform[:, :self.max_length]
+            # Randomly sample a starting point
+            
+            # print(waveform.shape[1])
+            max_start = waveform.shape[1] - int(self.max_length)
+            start = torch.randint(0, max_start + 1, (1,)).item()
+            waveform = waveform[:, start : start + self.max_length]
+
+            # waveform = waveform[:, :self.max_length]
 
         # Add Noise    
         noise = torch.randn_like(waveform) * (torch.std(waveform) / (self.snr_db + 1e-10))
