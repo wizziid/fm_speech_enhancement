@@ -26,7 +26,7 @@ class StochasticSampler:
         # print(f"t: {t}, x shape: {x.shape}, v_field shape: {v_field.shape}, device: {x.device}")
         return v_field 
     
-    def sample(self, x0, iterations=100, batch_size= 1):
+    def sample(self, x0, iterations=10, batch_size= 1):
         """
         Samples new data points using the probability flow ODE solver.
         """
@@ -37,10 +37,10 @@ class StochasticSampler:
             x0, 
             time_grid, 
             method='rk4', 
-            atol=1e-6,
-            rtol=1e-6,
+            atol=1e-8,
+            rtol=1e-8,
             adjoint_params=(),
-            options={"step_size":5}  #, "dtype":torch.float32}
+            options={"step_size":.1}  #, "dtype":torch.float32}
         )  # Solve ODE
         print(f"ODE solver output shape: {x_samples.shape}, device: {x_samples.device}")
         return x_samples.to(self.device)  

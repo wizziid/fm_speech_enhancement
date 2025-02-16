@@ -21,7 +21,7 @@ class GetDataset:
     Have hardcoded sample rate to specifically output time bins that are powers of 2...
     """
 
-    def __init__(self, root="data/", url="train-clean-100", sample_rate=16000, n_fft=126, hop_length=125, win_length=126, max_length_seconds=2, device="cpu"):
+    def __init__(self, root="data/", url="train-clean-100", sample_rate=16000, n_fft=254, hop_length=125, win_length=126, max_length_seconds=2, device="cpu"):
         os.makedirs(root, exist_ok=True)
         # make more data
         self.dataset = LIBRISPEECH(root=root, url=url, download=True)
@@ -36,9 +36,9 @@ class GetDataset:
         self.max_length_seconds = max_length_seconds
         # NORMALISATION PARAMS
         self.alpha = 0.5
-        self.beta = 1
+        self.beta = 0.15
         # NOISE PARAMS
-        self.snr_db = 1.5
+        self.snr_db = 2.0 
 
         self.stft = T.Spectrogram(
             n_fft=n_fft,

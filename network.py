@@ -18,7 +18,7 @@ class Network(nn.Module):
 
     """
 
-    def __init__(self, input_shape, base_channels=128, embedding_dim= 512, n_residual_blocks=6, n_att_blocks=4, device="cpu"):
+    def __init__(self, input_shape, base_channels=128, embedding_dim= 512, n_residual_blocks=6, n_att_blocks=2, device="cpu"):
         super().__init__()
 
         self.device = torch.device(device)
@@ -86,10 +86,12 @@ class Network(nn.Module):
         skips = []
         x = self.initial_conv(x)
         for block, norm, attn, down in zip(self.enc_blocks, self.norm_layers_enc, self.attention_enc, self.downsample):
-            x = checkpoint.checkpoint(block, x, use_reentrant = False)
+            # x = checkpoint.checkpoint(block, x, use_reentrant = False)
+            x = block(x)            
             x = norm(x)
             if attn:
-                x = checkpoint.checkpoint(attn, x, use_reentrant = False)
+                # x = checkpoint.checkpoint(attn, x, use_reentrant = False)
+                x = attn(x)
             skips.append(x)  # Skip connection to other side of unet
             x = down(x)
 
@@ -102,11 +104,12 @@ class Network(nn.Module):
         for block, norm, attn, up, skip in zip(self.dec_blocks, self.norm_layers_dec, self.attention_dec, self.upsample, reversed(skips)):
             x = up(x)
             x = torch.cat([x, skip], dim=1) 
-            x = checkpoint.checkpoint(block, x, use_reentrant = False)
+            # x = checkpoint.checkpoint(block, x, use_reentrant = False)
+            x = block(x)            
             x = norm(x)
             if attn:
-                x = checkpoint.checkpoint(attn, x, use_reentrant = False)
-
+                # x = checkpoint.checkpoint(attn, x, use_reentrant = False)
+                x = attn(x)
         # Final convolution
         x = self.final_conv(x)
         return x

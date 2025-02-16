@@ -27,8 +27,9 @@ def main():
     if torch.backends.mps.is_available():
         device = "mps"
         torch.mps.empty_cache()
-    elif torch.backends.cuda.is_available():
+    elif torch.cuda.is_available():
         device = "cuda"
+        torch.cuda.set_device(2)
     print(f"Using device: {device}")
 
     # Get dataset and dataloader
@@ -42,11 +43,11 @@ def main():
     sampler = StochasticSampler(data_shape=dataset.real_shape, vector_field=vector_field_net, device=device)
     optimizer = torch.optim.Adam(list(vector_field_net.parameters()), lr=1e-5)
     total_params = sum(p.numel() for p in vector_field_net.parameters())
-    utils.print_memory("Model initialised")
+    utils.print_memory("Model initialised", device=device)
     print(f"Total Model Parameters: {total_params:,}")
 
     # Load previous checkpoint if exists
-    model_path = f"checkpoints/vector_field.pth"
+    model_path = f"checkpoints/vector_field_126_freq.pth"
     start_epoch = utils.load_model(vector_field_net, optimizer, model_path)
     losses = []
 

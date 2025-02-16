@@ -3,7 +3,7 @@ import os
 import matplotlib.pyplot as plt
 import torch
 import torchaudio
-
+import numpy as np
 
 """
 =======================================================================================================================
@@ -11,34 +11,81 @@ Samples, denormalises, converts back to complex spectrogram and wav form for sav
 =======================================================================================================================
 """
 
-def save_sample(dataset, sampler, epoch, batch, target, iterations=100):
+def save_sample(dataset, sampler, epoch, batch, target, iterations=10):
     batch_size = len(batch)
     sampled_spectrograms = sampler.sample(x0=batch, iterations=iterations, batch_size=batch_size).detach().cpu()
     time_indices = torch.round(torch.linspace(0, iterations - 1, steps=4)).long()
     print(time_indices)
     fig, axes = plt.subplots(batch_size, 5, figsize=(15, 10))
 
+    print(f"Shape of Sample: {sampled_spectrograms.shape}")
+    for s, spec in enumerate(sampled_spectrograms):
+        print(f"Sample {s} min: {spec[0].min()}, max: {spec[0].max()}")
+
+    print(f"target min: {dataset.complex_to_real(target[0].unsqueeze(0)).min()}, max: {dataset.complex_to_real(target[0].unsqueeze(0)).max()}")
+
+    # Test
+    
+    # Get output of sampler and target and compare min max values at each step...
+    sample_real = sampled_spectrograms[-1][0].unsqueeze(0)
+    target_real = dataset.complex_to_real(target[0].unsqueeze(0))
+    print(f"real values --- t_min: {target_real.min()}, t_max:{target_real.max()}")
+    print(f"real values --- s_min: {sample_real.min()}, s_max:{sample_real.max()}")
+    print()
+
+    sample_complex = dataset.real_to_complex(sample_real)
+    target_complex = dataset.real_to_complex(target_real)
+    original_target_complex = target[0].unsqueeze(0)
+    print(f"complex values --- t_min: {target_complex.detach().numpy().min()}, t_max:{target_complex.detach().numpy().max()}")
+    print(f"complex values --- s_min: {sample_complex.detach().numpy().min()}, s_max:{sample_complex.detach().numpy().max()}")
+    print(f"complex values --- o_t_min: {original_target_complex.detach().numpy().min()}, o_t_max: {original_target_complex.detach().numpy().min()}")
+    print()
+
+    sample_denorm = dataset.complex_denormalize(sample_complex)
+    target_denorm = dataset.complex_denormalize(target_complex)
+    original_target_denorm = dataset.complex_denormalize(original_target_complex)
+    print(f"denormed --- t_min: {target_denorm.detach().numpy().min()}, t_max: {target_denorm.detach().numpy().max()}")
+    print(f"denormed --- s_min: {sample_denorm.detach().numpy().min()}, s_max: {sample_denorm.detach().numpy().max()}")
+    print(f"denormed --- o_t_min: {original_target_denorm.detach().numpy().min()}, o_t_max: {original_target_denorm.detach().numpy().max()}")
+    print()
+
+
+    same_indices = (target_denorm == original_target_denorm).nonzero(as_tuple=True)
+    diff_indices = (target_denorm != original_target_denorm).nonzero(as_tuple=True)
+    print(f"Same indices: {same_indices}")
+    print(f"Different indices: {diff_indices}")
+
+    
+
+    sample_istft = dataset.inverse_stft(sample_denorm)
+    target_istft = dataset.inverse_stft(target_denorm)
+    original_target_istft = dataset.inverse_stft(original_target_denorm) 
+    print(f"istft --- t_min: {target_istft.min()}, t_max: {target_istft.max()}")
+    print(f"istft --- s_min: {sample_istft.min()}, t_max: {sample_istft.max()}")
+    print(f"istft --- o_t_min: {original_target_istft.min()}, o_t_max: {original_target_istft.max()}")
+    print()
+
+    # Save waveforms
+    output_waveform = dataset.inverse_stft(dataset.complex_denormalize(dataset.real_to_complex(sampled_spectrograms[-1][0].unsqueeze(0))))
+    output_path = f"artefacts/wav/{epoch+1}_sample_0_out.wav"
+    torchaudio.save(output_path, output_waveform, dataset.sample_rate)
+
+    input_waveform = dataset.inverse_stft(dataset.complex_denormalize(dataset.real_to_complex(sampled_spectrograms[0][0].unsqueeze(0))))
+    input_path = f"artefacts/wav/{epoch+1}_sample_0_input.wav"
+    torchaudio.save(input_path, input_waveform, dataset.sample_rate)
+
+    target_waveform = dataset.inverse_stft(dataset.complex_denormalize(target[0]))
+    target_path = f"artefacts/wav/{epoch+1}_sample_0_target.wav"
+    torchaudio.save(target_path, target_waveform, dataset.sample_rate)
+
+    print(target_waveform.min(), target_waveform.max())
+    print(output_waveform.min(), output_waveform.max())
     # Row = sample, column = time
     for col, t_idx in enumerate(time_indices):
         batch_spectrograms = sampled_spectrograms[t_idx]
         for row in range(batch_size):  
             spectrogram = dataset.real_to_complex(batch_spectrograms[row].unsqueeze(0))
             spectrogram = dataset.complex_denormalize(spectrogram)
-
-            # Save an audio sample of the first sample denoised... Could probably be directly accessed with index.
-            if row == 0 and col == 0:
-                # output
-                waveform = dataset.inverse_stft(spectrogram)
-                audio_path = f"artefacts/wav/{epoch+1}_sample_{row}_out.wav"
-                torchaudio.save(audio_path, waveform, dataset.sample_rate)
-                # input
-                input_waveform = dataset.inverse_stft(dataset.complex_denormalize(dataset.real_to_complex(batch[0].cpu().unsqueeze(0))))
-                input_path = f"artefacts/wav/{epoch+1}_sample_{row}_input.wav"
-                torchaudio.save(input_path, input_waveform, dataset.sample_rate)
-                # Target
-                target_waveform = dataset.inverse_stft(dataset.complex_denormalize(target[0]))
-                target_path = f"artefacts/wav/{epoch+1}_sample_{row}_target.wav"
-                torchaudio.save(target_path, target_waveform, dataset.sample_rate)
 
             # magnitudes
             img = torch.abs(spectrogram.squeeze()).log1p().numpy()
