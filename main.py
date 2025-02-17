@@ -85,6 +85,8 @@ def main():
             t = t[:3]
             b = b[:3].to(device)
             b = dataset.complex_to_real(b)
+            t = dataset.complex_to_real(t)
+            print(b.shape, t.shape)
             vector_field_net.eval()
             utils.save_sample(dataset, sampler, epoch, b, t)
             vector_field_net.train()

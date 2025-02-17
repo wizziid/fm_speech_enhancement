@@ -13,108 +13,98 @@ Samples, denormalises, converts back to complex spectrogram and wav form for sav
 
 def save_sample(dataset, sampler, epoch, batch, target, iterations=10):
     batch_size = len(batch)
-    sampled_spectrograms = sampler.sample(x0=batch, iterations=iterations, batch_size=batch_size).detach().cpu()
+    sampled_spectrograms = sampler.sample(x0=batch, iterations=iterations).detach().cpu()
+    batch = batch.detach().cpu()
     time_indices = torch.round(torch.linspace(0, iterations - 1, steps=4)).long()
-    print(time_indices)
-    fig, axes = plt.subplots(batch_size, 5, figsize=(15, 10))
 
     print(f"Shape of Sample: {sampled_spectrograms.shape}")
     for s, spec in enumerate(sampled_spectrograms):
         print(f"Sample {s} min: {spec[0].min()}, max: {spec[0].max()}")
 
-    print(f"target min: {dataset.complex_to_real(target[0].unsqueeze(0)).min()}, max: {dataset.complex_to_real(target[0].unsqueeze(0)).max()}")
+    epoch_dir = f"artefacts/wav/{epoch+1}/"
+    os.makedirs(epoch_dir, exist_ok=True)
 
-    # Test
-    
-    # Get output of sampler and target and compare min max values at each step...
-    sample_real = sampled_spectrograms[-1][0].unsqueeze(0)
-    target_real = dataset.complex_to_real(target[0].unsqueeze(0))
-    print(f"real values --- t_min: {target_real.min()}, t_max:{target_real.max()}")
-    print(f"real values --- s_min: {sample_real.min()}, s_max:{sample_real.max()}")
-    print()
+    # Save waveforms using different phase reconstruction methods
+    save_waveforms(dataset, sampled_spectrograms, batch, target, epoch_dir)
 
-    sample_complex = dataset.real_to_complex(sample_real)
-    target_complex = dataset.real_to_complex(target_real)
-    original_target_complex = target[0].unsqueeze(0)
-    print(f"complex values --- t_min: {target_complex.detach().numpy().min()}, t_max:{target_complex.detach().numpy().max()}")
-    print(f"complex values --- s_min: {sample_complex.detach().numpy().min()}, s_max:{sample_complex.detach().numpy().max()}")
-    print(f"complex values --- o_t_min: {original_target_complex.detach().numpy().min()}, o_t_max: {original_target_complex.detach().numpy().min()}")
-    print()
+    # Plot spectrograms
+    plot_spectrograms(dataset, sampled_spectrograms, target, batch_size, time_indices, epoch)
 
-    sample_denorm = dataset.complex_denormalize(sample_complex)
-    target_denorm = dataset.complex_denormalize(target_complex)
-    original_target_denorm = dataset.complex_denormalize(original_target_complex)
-    print(f"denormed --- t_min: {target_denorm.detach().numpy().min()}, t_max: {target_denorm.detach().numpy().max()}")
-    print(f"denormed --- s_min: {sample_denorm.detach().numpy().min()}, s_max: {sample_denorm.detach().numpy().max()}")
-    print(f"denormed --- o_t_min: {original_target_denorm.detach().numpy().min()}, o_t_max: {original_target_denorm.detach().numpy().max()}")
-    print()
+def save_waveforms(dataset, sampled_spectrograms, batch, target, epoch_dir):
+    """ Saves waveform reconstructions using different phase methods. """
+    sample = sampled_spectrograms[-1][0].unsqueeze(0) # dataset.real_to_complex(sampled_spectrograms[-1][0].unsqueeze(0))
+    input = batch[0].unsqueeze(0)
+    target = target[0].unsqueeze(0)
+
+    # print(sample.device, input.device, target.device)
+
+    # Original ISTFT (junk phase)
+    output_waveform = dataset.reconstruct_phase_istft(sample) # dataset.inverse_stft(dataset.complex_denormalize(sample_complex))
+    torchaudio.save(f"{epoch_dir}/sample_0_out_original.wav", output_waveform, dataset.sample_rate)
+
+    # Griffin-Lim
+    output_gl = dataset.reconstruct_phase_griffinlim(sample)
+    torchaudio.save(f"{epoch_dir}/sample_0_out_griffinlim.wav", output_gl, dataset.sample_rate)
+
+    # Noisy input phase masking
+    output_masked = dataset.reconstruct_phase_threshold(sample, input)
+    torchaudio.save(f"{epoch_dir}/sample_0_out_masked.wav", output_masked, dataset.sample_rate)
+
+    # Save input and target
+    input_waveform = dataset.reconstruct_phase_istft(input) # dataset.inverse_stft(dataset.complex_denormalize(dataset.real_to_complex(batch[0].unsqueeze(0))))
+    torchaudio.save(f"{epoch_dir}/sample_0_input.wav", input_waveform, dataset.sample_rate)
+
+    target_waveform = dataset.reconstruct_phase_istft(target) # dataset.inverse_stft(dataset.complex_denormalize(target_complex[0]))
+    torchaudio.save(f"{epoch_dir}/sample_0_target.wav", target_waveform, dataset.sample_rate)
+
+    print(f"Input waveform range: [{input_waveform.min()}:{input_waveform.max()}]")
+    print(f"output waveform range: [{output_waveform.min()}:{output_waveform.max()}]")
+    print(f"GL output waveform range: [{output_gl.min()}:{output_gl.max()}]")
+    print(f"Input waveform range: [{output_masked.min()}:{output_masked.max()}]")
+    print(f"Input waveform range: [{target_waveform.min()}:{target_waveform.max()}]")
 
 
-    same_indices = (target_denorm == original_target_denorm).nonzero(as_tuple=True)
-    diff_indices = (target_denorm != original_target_denorm).nonzero(as_tuple=True)
-    print(f"Same indices: {same_indices}")
-    print(f"Different indices: {diff_indices}")
+def plot_spectrograms(dataset, sampled_spectrograms, target_real, batch_size, time_indices, epoch):
+    """Plots and saves spectrograms for different steps and the target."""
+    fig, axes = plt.subplots(batch_size, 5, figsize=(15, 10))
 
-    
+    # Ensure first column is input (t=0), last column before target is output (t=1)
+    time_indices = [0, *time_indices[1:3], -1]  
 
-    sample_istft = dataset.inverse_stft(sample_denorm)
-    target_istft = dataset.inverse_stft(target_denorm)
-    original_target_istft = dataset.inverse_stft(original_target_denorm) 
-    print(f"istft --- t_min: {target_istft.min()}, t_max: {target_istft.max()}")
-    print(f"istft --- s_min: {sample_istft.min()}, t_max: {sample_istft.max()}")
-    print(f"istft --- o_t_min: {original_target_istft.min()}, o_t_max: {original_target_istft.max()}")
-    print()
-
-    # Save waveforms
-    output_waveform = dataset.inverse_stft(dataset.complex_denormalize(dataset.real_to_complex(sampled_spectrograms[-1][0].unsqueeze(0))))
-    output_path = f"artefacts/wav/{epoch+1}_sample_0_out.wav"
-    torchaudio.save(output_path, output_waveform, dataset.sample_rate)
-
-    input_waveform = dataset.inverse_stft(dataset.complex_denormalize(dataset.real_to_complex(sampled_spectrograms[0][0].unsqueeze(0))))
-    input_path = f"artefacts/wav/{epoch+1}_sample_0_input.wav"
-    torchaudio.save(input_path, input_waveform, dataset.sample_rate)
-
-    target_waveform = dataset.inverse_stft(dataset.complex_denormalize(target[0]))
-    target_path = f"artefacts/wav/{epoch+1}_sample_0_target.wav"
-    torchaudio.save(target_path, target_waveform, dataset.sample_rate)
-
-    print(target_waveform.min(), target_waveform.max())
-    print(output_waveform.min(), output_waveform.max())
-    # Row = sample, column = time
     for col, t_idx in enumerate(time_indices):
         batch_spectrograms = sampled_spectrograms[t_idx]
         for row in range(batch_size):  
             spectrogram = dataset.real_to_complex(batch_spectrograms[row].unsqueeze(0))
             spectrogram = dataset.complex_denormalize(spectrogram)
 
-            # magnitudes
+            # Magnitudes
             img = torch.abs(spectrogram.squeeze()).log1p().numpy()
             axes[row, col].imshow(img, aspect="auto", origin="lower")
             axes[row, col].set_xticks([])
             axes[row, col].set_yticks([])
 
-            # row/col labels
+            # Row/Col labels
             if row == 0:
-                axes[row, col].set_title(f"T={1 - col * 0.33:.2f}")  
+                axes[row, col].set_title(f"T={t_idx / len(sampled_spectrograms):.2f}")  
             if col == 0:
                 axes[row, col].set_ylabel(f"Sample {row}")
 
-    # Plot target in finl column
+    # Plot target in final column
     for row in range(batch_size):
-        target_spectrogram = dataset.complex_denormalize(target[row].unsqueeze(0))  # Denormalize bc target is normalised in loader.
+        target_spectrogram = dataset.real_to_complex(target_real[row].unsqueeze(0))
+        target_spectrogram = dataset.complex_denormalize(target_spectrogram)
         img = torch.abs(target_spectrogram.squeeze()).log1p().numpy()
         axes[row, -1].imshow(img, aspect="auto", origin="lower")
         axes[row, -1].set_xticks([])
         axes[row, -1].set_yticks([])
-        axes[row, -1].set_title("Target")  # Label target column
+        axes[row, -1].set_title("Target")
 
     plt.tight_layout()
     spectrogram_path = f"artefacts/stft/sample_spectrogram_epoch_{epoch+1}.png"
     plt.savefig(spectrogram_path)
     plt.close()
+
     print(f"Saved artefacts for epoch {epoch}")
-
-
 
 def plot_losses(losses, epoch):
     save_dir = "artefacts/loss"

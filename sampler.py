@@ -26,7 +26,7 @@ class StochasticSampler:
         # print(f"t: {t}, x shape: {x.shape}, v_field shape: {v_field.shape}, device: {x.device}")
         return v_field 
     
-    def sample(self, x0, iterations=10, batch_size= 1):
+    def sample(self, x0, iterations=10):
         """
         Samples new data points using the probability flow ODE solver.
         """

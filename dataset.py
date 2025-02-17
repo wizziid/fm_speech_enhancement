@@ -8,6 +8,7 @@ import torchaudio
 import torchaudio.transforms as T
 from torch.utils.data import DataLoader, Subset
 from torchaudio.datasets import LIBRISPEECH
+import torchaudio.functional as F
 
 from tqdm import tqdm
 
@@ -75,13 +76,9 @@ class GetDataset:
             waveform = torch.nn.functional.pad(waveform, (0, pad))
         else:
             # Randomly sample a starting point
-            
-            # print(waveform.shape[1])
             max_start = waveform.shape[1] - int(self.max_length)
             start = torch.randint(0, max_start + 1, (1,)).item()
             waveform = waveform[:, start : start + self.max_length]
-
-            # waveform = waveform[:, :self.max_length]
 
         # Add Noise    
         noise = torch.randn_like(waveform) * (torch.std(waveform) / (self.snr_db + 1e-10))
@@ -127,7 +124,6 @@ class GetDataset:
     def inverse_stft(self, spectrogram):
         return self.istft(spectrogram)
     
-
     def play_audio(self, waveform):
         """
         Plays the waveform on sound device with the given sample rate.
@@ -200,5 +196,55 @@ class GetDataset:
         )
         print(out)
 
+    def reconstruct_phase_istft(self, sampled_spectrogram):
+        """
+        Uses inverse STFT to reconstruct waveform (baseline method).
+        """
+        sampled_complex = self.real_to_complex(sampled_spectrogram)
+        sampled_complex = self.complex_denormalize(sampled_complex)
+        return self.istft(sampled_complex)
 
+
+    def reconstruct_phase_griffinlim(self, sampled_spectrogram):
+        """
+        Uses Griffin-Lim algorithm to reconstruct phase from magnitude.
+        """
+        sampled_complex = self.real_to_complex(sampled_spectrogram)
+        sampled_complex = self.complex_denormalize(sampled_complex)
+        
+        magnitude = torch.abs(sampled_complex)
+        reconstructed_waveform = F.griffinlim(
+            magnitude,
+            n_fft=self.n_fft,
+            win_length=self.win_length,
+            hop_length=self.hop_length,
+            window=torch.hann_window(self.win_length, device=magnitude.device),
+            power=1.0,
+            n_iter=32,  
+            momentum=0.99, 
+            length=None,  
+            rand_init=True 
+        )
+        return reconstructed_waveform
+
+
+    def reconstruct_phase_threshold(self, sampled_spectrogram, noisy_spectrogram, threshold=0.1):
+        """
+        Uses noisy input's phase for bins where the predicted magnitude is above a threshold.
+        """
+        sampled_complex = self.real_to_complex(sampled_spectrogram)
+        #print(sampled_complex.device)
+        sampled_complex = self.complex_denormalize(sampled_complex)
+        noisy_complex = self.real_to_complex(noisy_spectrogram)
+        # print(noisy_complex.device)
+        noisy_complex = self.complex_denormalize(noisy_complex)
+        # Compute magnitudes
+        sampled_magnitude = torch.abs(sampled_complex)
+        noisy_phase = torch.angle(noisy_complex)
+        # Create mask based on threshold
+        mask = sampled_magnitude > threshold
+        # Combine sampled magnitude with noisy input phase where mask is True
+        reconstructed_complex = torch.polar(sampled_magnitude, noisy_phase * mask)
+
+        return self.istft(reconstructed_complex)
 
