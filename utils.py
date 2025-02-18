@@ -14,6 +14,7 @@ Samples, denormalises, converts back to complex spectrogram and wav form for sav
 def save_sample(dataset, sampler, epoch, batch, target, iterations=10):
     batch_size = len(batch)
     sampled_spectrograms = sampler.sample(x0=batch, iterations=iterations).detach().cpu()
+    target = target.cpu()
     batch = batch.detach().cpu()
     time_indices = torch.round(torch.linspace(0, iterations - 1, steps=4)).long()
 

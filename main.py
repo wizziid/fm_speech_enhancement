@@ -79,18 +79,14 @@ def main():
         if epoch > 5:
             utils.plot_losses(losses, epoch)
     
-        # enhance a couple of examples from the dataloader
-        for b, batch in enumerate(dataloader):
-            t, b, _ = batch
-            t = t[:3]
-            b = b[:3].to(device)
-            b = dataset.complex_to_real(b)
-            t = dataset.complex_to_real(t)
-            print(b.shape, t.shape)
-            vector_field_net.eval()
-            utils.save_sample(dataset, sampler, epoch, b, t)
-            vector_field_net.train()
-            break
+        # Sample some longer audio segments and test network.    
+        t, b = dataset.get_test_batch(batch_size=3)
+        b = dataset.complex_to_real(b).to(device)
+        t = dataset.complex_to_real(t).to(device)
+        print(b.shape, t.shape)
+        vector_field_net.eval()
+        utils.save_sample(dataset, sampler, epoch, b, t)
+        vector_field_net.train()
 
         utils.save_model(vector_field_net, optimizer, (epoch + 1), model_path)
 

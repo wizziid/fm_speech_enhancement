@@ -84,9 +84,9 @@ class GetDataset:
 
         # Add Noise    
         
-	# use random snr_db ratio??
-	# snr_db = 0.5 + torch.random((1,)) * 5  # min + [0, 1] * (max - min)
-	noise = torch.randn_like(waveform) * (torch.std(waveform) / (self.snr_db + 1e-10))
+	    # use random snr_db ratio??
+	    # snr_db = 0.5 + torch.random((1,)) * 5  # min + [0, 1] * (max - min)
+        noise = torch.randn_like(waveform) * (torch.std(waveform) / (self.snr_db + 1e-10))
         signal_power = torch.mean(waveform ** 2)
         noise_power = torch.mean(noise ** 2)
         # print(f"signal power {signal_power}, noise power {noise_power}, mean wav {waveform.mean()}, wav min {waveform.min()}, wav max {waveform.max()}")
@@ -95,14 +95,6 @@ class GetDataset:
         noise = noise * torch.sqrt(signal_power / (snr_linear * (noise_power + eps)))
         noised_waveform = waveform + noise
         mask = (noise != 0).float()
-
-        #print(f"s_power {signal_power}, n_power {noise_power}")
-        #print(f"wav min {waveform.min()}, wav max {waveform.max()}")
-        #print(f"noise min {noise.min()}, noise max {noise.max()}")
-        #print(f"Noised wav min {noised_waveform.min()}, noised wav max {noised_waveform.max()}")   
-        #print() 
-        #torchaudio.save("artefacts/noised.wav", noised_waveform, sample_rate=16000)
-        #torchaudio.save("artefacts/original.wav", waveform, sample_rate=16000)
 
         # convert original, noised and mask into normalised complex stft
         spectrogram = self.stft(waveform)
@@ -115,8 +107,8 @@ class GetDataset:
         return spectrogram, noised_spectrogram, mask_spectrogram
 
     def get_dataloader(self, batch_size=32, shuffle=True):
-        # clamped = Subset(self, range(256))
-        # return DataLoader(clamped, batch_size=batch_size, shuffle=shuffle)
+        clamped = Subset(self, range(256))
+        return DataLoader(clamped, batch_size=batch_size, shuffle=shuffle)
         return DataLoader(self, batch_size=batch_size, shuffle=shuffle)
 
     def plot_spectrogram(self, spectrogram, title="Spectrogram"):
@@ -252,8 +244,55 @@ class GetDataset:
         mask = sampled_magnitude > threshold
         # Combine sampled magnitude with noisy input phase where mask is True
         # reconstructed_complex = torch.polar(sampled_magnitude, noisy_phase * mask)
-
-        reconstructed_complex = torch.polar(sampled_magnitude, noisy_phase) #* mask)
+        reconstructed_complex = torch.polar(sampled_magnitude, noisy_phase * mask)
 
         return self.istft(reconstructed_complex)
 
+
+    def get_test_batch(self, batch_size):
+        """
+        Gets a test batch of the size and time bins specified.
+
+        ** Repeating a lot of code from __getitem__() here **
+        """
+        # again hard code time bins to be power of 2...
+        length = self.sample_rate * 4 + (self.hop_length * 23)  # 4 second test batches?
+        # indices
+        inds = [random.randint(0, len(self.dataset)) for _ in range(batch_size)]
+        inputs = []
+        targets = []
+        for i in inds:
+            waveform, sr, _, _, _, _  = self.dataset[i]
+            
+            if waveform.shape[1] < length:
+                pad = length - waveform.shape[1]
+                waveform = torch.nn.functional.pad(waveform, (0, pad))
+            else:
+                # Randomly sample a starting point
+                max_start = waveform.shape[1] - int(length)
+                start = torch.randint(0, max_start + 1, (1,)).item()
+                waveform = waveform[:, start : start + length]
+            
+            noise = torch.randn_like(waveform) * (torch.std(waveform) / (self.snr_db + 1e-10))
+            signal_power = torch.mean(waveform ** 2)
+            noise_power = torch.mean(noise ** 2)
+            # print(f"signal power {signal_power}, noise power {noise_power}, mean wav {waveform.mean()}, wav min {waveform.min()}, wav max {waveform.max()}")
+            snr_linear = 10 ** (self.snr_db / 10)
+            eps = 1e-10
+            noise = noise * torch.sqrt(signal_power / (snr_linear * (noise_power + eps)))
+            noised_waveform = waveform + noise
+            mask = (noise != 0).float()
+            # convert original, noised and mask into normalised complex stft
+            spectrogram = self.stft(waveform)
+            spectrogram = self.complex_normalize(spectrogram)
+            noised_spectrogram = self.stft(noised_waveform)
+            noised_spectrogram = self.complex_normalize(noised_spectrogram)
+            mask_spectrogram = self.stft(mask)
+            mask_spectrogram = self.complex_normalize(mask_spectrogram)
+            inputs.append(noised_spectrogram)
+            targets.append(spectrogram)
+
+        inputs_t = torch.stack(inputs)
+        targets_t = torch.stack(targets)
+        # print(targets_t.shape, inputs_t.shape)
+        return targets_t, inputs_t
