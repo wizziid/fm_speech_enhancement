@@ -22,7 +22,7 @@ class GetDataset:
     Have hardcoded sample rate to specifically output time bins that are powers of 2...
     """
 
-    def __init__(self, root="data/", url="train-clean-100", sample_rate=16000, n_fft=254, hop_length=125, win_length=126, max_length_seconds=2, device="cpu"):
+    def __init__(self, root="data/", url="train-clean-100", sample_rate=16000, n_fft=254, hop_length=64, win_length=128, max_length_seconds=1, device="cpu"):
         os.makedirs(root, exist_ok=True)
         # make more data
         self.dataset = LIBRISPEECH(root=root, url=url, download=True)
@@ -32,26 +32,28 @@ class GetDataset:
         self.n_fft = n_fft
         self.hop_length = hop_length
         self.win_length = win_length
-        # 2 seconds at 16000hz results in 257 time bins...remove 1 sample. Much friendlier to network.
-        self.max_length = max_length_seconds * sample_rate - 1 
+        # hard code sample length so that stft has power of 2 time bins... 
+        self.max_length = max_length_seconds * sample_rate + (6 * hop_length) - 1 
         self.max_length_seconds = max_length_seconds
         # NORMALISATION PARAMS
         self.alpha = 0.5
-        self.beta = 0.15
+        self.beta = 1  # 0.5 
         # NOISE PARAMS
-        self.snr_db = 2.0 
+        self.snr_db = 1 
 
         self.stft = T.Spectrogram(
             n_fft=n_fft,
             hop_length=hop_length,
             win_length=win_length,
-            power=None  
+            power=None,
+            onesided= True  #False  
         )
 
         self.istft = T.InverseSpectrogram(
             n_fft=n_fft,
             hop_length=hop_length,
             win_length=win_length,
+            onesided= True  #False
         )
 
         self.example_spec, _, _ = self[10]
@@ -81,7 +83,10 @@ class GetDataset:
             waveform = waveform[:, start : start + self.max_length]
 
         # Add Noise    
-        noise = torch.randn_like(waveform) * (torch.std(waveform) / (self.snr_db + 1e-10))
+        
+	# use random snr_db ratio??
+	# snr_db = 0.5 + torch.random((1,)) * 5  # min + [0, 1] * (max - min)
+	noise = torch.randn_like(waveform) * (torch.std(waveform) / (self.snr_db + 1e-10))
         signal_power = torch.mean(waveform ** 2)
         noise_power = torch.mean(noise ** 2)
         # print(f"signal power {signal_power}, noise power {noise_power}, mean wav {waveform.mean()}, wav min {waveform.min()}, wav max {waveform.max()}")
@@ -110,8 +115,8 @@ class GetDataset:
         return spectrogram, noised_spectrogram, mask_spectrogram
 
     def get_dataloader(self, batch_size=32, shuffle=True):
-        clamped = Subset(self, range(256))
-        return DataLoader(clamped, batch_size=batch_size, shuffle=shuffle)
+        # clamped = Subset(self, range(256))
+        # return DataLoader(clamped, batch_size=batch_size, shuffle=shuffle)
         return DataLoader(self, batch_size=batch_size, shuffle=shuffle)
 
     def plot_spectrogram(self, spectrogram, title="Spectrogram"):
@@ -213,6 +218,8 @@ class GetDataset:
         sampled_complex = self.complex_denormalize(sampled_complex)
         
         magnitude = torch.abs(sampled_complex)
+        #power = magnitude**2
+
         reconstructed_waveform = F.griffinlim(
             magnitude,
             n_fft=self.n_fft,
@@ -220,15 +227,15 @@ class GetDataset:
             hop_length=self.hop_length,
             window=torch.hann_window(self.win_length, device=magnitude.device),
             power=1.0,
-            n_iter=32,  
+            n_iter=64,  
             momentum=0.99, 
             length=None,  
             rand_init=True 
         )
+        
         return reconstructed_waveform
 
-
-    def reconstruct_phase_threshold(self, sampled_spectrogram, noisy_spectrogram, threshold=0.1):
+    def reconstruct_phase_threshold(self, sampled_spectrogram, noisy_spectrogram, threshold=.001):
         """
         Uses noisy input's phase for bins where the predicted magnitude is above a threshold.
         """
@@ -244,7 +251,9 @@ class GetDataset:
         # Create mask based on threshold
         mask = sampled_magnitude > threshold
         # Combine sampled magnitude with noisy input phase where mask is True
-        reconstructed_complex = torch.polar(sampled_magnitude, noisy_phase * mask)
+        # reconstructed_complex = torch.polar(sampled_magnitude, noisy_phase * mask)
+
+        reconstructed_complex = torch.polar(sampled_magnitude, noisy_phase) #* mask)
 
         return self.istft(reconstructed_complex)
 

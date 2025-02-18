@@ -15,7 +15,7 @@ import utils
 CHECKPOINT = 0
 
 def main():
-    torch.manual_seed(589)
+    #torch.manual_seed(589)
     # ensure directories exist
     os.makedirs("checkpoints", exist_ok=True)
     os.makedirs("artefacts", exist_ok=True)
@@ -41,13 +41,13 @@ def main():
     vector_field_net = Network(input_shape=dataset.real_shape, device=device)
     interpolant = Interpolant()
     sampler = StochasticSampler(data_shape=dataset.real_shape, vector_field=vector_field_net, device=device)
-    optimizer = torch.optim.Adam(list(vector_field_net.parameters()), lr=1e-5)
+    optimizer = torch.optim.Adam(list(vector_field_net.parameters()), lr=1e-4)
     total_params = sum(p.numel() for p in vector_field_net.parameters())
     utils.print_memory("Model initialised", device=device)
     print(f"Total Model Parameters: {total_params:,}")
 
     # Load previous checkpoint if exists
-    model_path = f"checkpoints/vector_field_126_freq.pth"
+    model_path = f"checkpoints/vector_field_126_freq_diffnorm.pth"
     start_epoch = utils.load_model(vector_field_net, optimizer, model_path)
     losses = []
 

@@ -18,7 +18,7 @@ class Network(nn.Module):
 
     """
 
-    def __init__(self, input_shape, base_channels=128, embedding_dim= 512, n_residual_blocks=6, n_att_blocks=2, device="cpu"):
+    def __init__(self, input_shape, base_channels=128, embedding_dim= 256, n_residual_blocks=6, n_att_blocks=0, device="cpu"):
         super().__init__()
 
         self.device = torch.device(device)

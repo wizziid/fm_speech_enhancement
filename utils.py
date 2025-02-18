@@ -60,8 +60,8 @@ def save_waveforms(dataset, sampled_spectrograms, batch, target, epoch_dir):
     print(f"Input waveform range: [{input_waveform.min()}:{input_waveform.max()}]")
     print(f"output waveform range: [{output_waveform.min()}:{output_waveform.max()}]")
     print(f"GL output waveform range: [{output_gl.min()}:{output_gl.max()}]")
-    print(f"Input waveform range: [{output_masked.min()}:{output_masked.max()}]")
-    print(f"Input waveform range: [{target_waveform.min()}:{target_waveform.max()}]")
+    print(f"Threshold waveform range: [{output_masked.min()}:{output_masked.max()}]")
+    print(f"Target waveform range: [{target_waveform.min()}:{target_waveform.max()}]")
 
 
 def plot_spectrograms(dataset, sampled_spectrograms, target_real, batch_size, time_indices, epoch):
