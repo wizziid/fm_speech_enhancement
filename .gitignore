@@ -9,3 +9,6 @@ data/*
 artefacts/*
 venv/*
 __pycache__/*
+results/*
+results/
+.DS_Store

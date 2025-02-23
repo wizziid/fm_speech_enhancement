@@ -11,10 +11,10 @@ Samples, denormalises, converts back to complex spectrogram and wav form for sav
 =======================================================================================================================
 """
 
-def save_sample(dataset, sampler, epoch, batch, target, iterations=10):
+def save_sample(dataset, sampler, epoch, batch, clean, iterations=10):
     batch_size = len(batch)
     sampled_spectrograms = sampler.sample(x0=batch, iterations=iterations).detach().cpu()
-    target = target.cpu()
+    clean = clean.cpu()
     batch = batch.detach().cpu()
     time_indices = torch.round(torch.linspace(0, iterations - 1, steps=4)).long()
 
@@ -26,18 +26,16 @@ def save_sample(dataset, sampler, epoch, batch, target, iterations=10):
     os.makedirs(epoch_dir, exist_ok=True)
 
     # Save waveforms using different phase reconstruction methods
-    save_waveforms(dataset, sampled_spectrograms, batch, target, epoch_dir)
+    save_waveforms(dataset, sampled_spectrograms, batch, clean, epoch_dir)
 
     # Plot spectrograms
-    plot_spectrograms(dataset, sampled_spectrograms, target, batch_size, time_indices, epoch)
+    plot_spectrograms(dataset, sampled_spectrograms, clean, batch_size, time_indices, epoch)
 
-def save_waveforms(dataset, sampled_spectrograms, batch, target, epoch_dir):
+def save_waveforms(dataset, sampled_spectrograms, batch, clean, epoch_dir):
     """ Saves waveform reconstructions using different phase methods. """
     sample = sampled_spectrograms[-1][0].unsqueeze(0) # dataset.real_to_complex(sampled_spectrograms[-1][0].unsqueeze(0))
     input = batch[0].unsqueeze(0)
-    target = target[0].unsqueeze(0)
-
-    # print(sample.device, input.device, target.device)
+    clean = clean[0].unsqueeze(0)
 
     # Original ISTFT (junk phase)
     output_waveform = dataset.reconstruct_phase_istft(sample) # dataset.inverse_stft(dataset.complex_denormalize(sample_complex))
@@ -48,28 +46,28 @@ def save_waveforms(dataset, sampled_spectrograms, batch, target, epoch_dir):
     torchaudio.save(f"{epoch_dir}/sample_0_out_griffinlim.wav", output_gl, dataset.sample_rate)
 
     # Noisy input phase masking
-    output_masked = dataset.reconstruct_phase_threshold(sample, input)
+    output_masked = dataset.reconstruct_phase_noisy(sample, input)
     torchaudio.save(f"{epoch_dir}/sample_0_out_masked.wav", output_masked, dataset.sample_rate)
 
-    # Save input and target
-    input_waveform = dataset.reconstruct_phase_istft(input) # dataset.inverse_stft(dataset.complex_denormalize(dataset.real_to_complex(batch[0].unsqueeze(0))))
+    # Save input and clean
+    input_waveform = dataset.reconstruct_phase_istft(input) 
     torchaudio.save(f"{epoch_dir}/sample_0_input.wav", input_waveform, dataset.sample_rate)
 
-    target_waveform = dataset.reconstruct_phase_istft(target) # dataset.inverse_stft(dataset.complex_denormalize(target_complex[0]))
-    torchaudio.save(f"{epoch_dir}/sample_0_target.wav", target_waveform, dataset.sample_rate)
+    clean_waveform = dataset.reconstruct_phase_istft(clean) 
+    torchaudio.save(f"{epoch_dir}/sample_0_clean.wav", clean_waveform, dataset.sample_rate)
 
     print(f"Input waveform range: [{input_waveform.min()}:{input_waveform.max()}]")
     print(f"output waveform range: [{output_waveform.min()}:{output_waveform.max()}]")
     print(f"GL output waveform range: [{output_gl.min()}:{output_gl.max()}]")
-    print(f"Threshold waveform range: [{output_masked.min()}:{output_masked.max()}]")
-    print(f"Target waveform range: [{target_waveform.min()}:{target_waveform.max()}]")
+    print(f"noisy_mask waveform range: [{output_masked.min()}:{output_masked.max()}]")
+    print(f"clean waveform range: [{clean_waveform.min()}:{clean_waveform.max()}]")
 
 
-def plot_spectrograms(dataset, sampled_spectrograms, target_real, batch_size, time_indices, epoch):
-    """Plots and saves spectrograms for different steps and the target."""
+def plot_spectrograms(dataset, sampled_spectrograms, clean_real, batch_size, time_indices, epoch):
+    """Plots and saves spectrograms for different steps and the clean."""
     fig, axes = plt.subplots(batch_size, 5, figsize=(15, 10))
 
-    # Ensure first column is input (t=0), last column before target is output (t=1)
+    # Ensure first column is input (t=0), last column before clean is output (t=1)
     time_indices = [0, *time_indices[1:3], -1]  
 
     for col, t_idx in enumerate(time_indices):
@@ -90,15 +88,15 @@ def plot_spectrograms(dataset, sampled_spectrograms, target_real, batch_size, ti
             if col == 0:
                 axes[row, col].set_ylabel(f"Sample {row}")
 
-    # Plot target in final column
+    # Plot clean in final column
     for row in range(batch_size):
-        target_spectrogram = dataset.real_to_complex(target_real[row].unsqueeze(0))
-        target_spectrogram = dataset.complex_denormalize(target_spectrogram)
-        img = torch.abs(target_spectrogram.squeeze()).log1p().numpy()
+        clean_spectrogram = dataset.real_to_complex(clean_real[row].unsqueeze(0))
+        clean_spectrogram = dataset.complex_denormalize(clean_spectrogram)
+        img = torch.abs(clean_spectrogram.squeeze()).log1p().numpy()
         axes[row, -1].imshow(img, aspect="auto", origin="lower")
         axes[row, -1].set_xticks([])
         axes[row, -1].set_yticks([])
-        axes[row, -1].set_title("Target")
+        axes[row, -1].set_title("clean")
 
     plt.tight_layout()
     spectrogram_path = f"artefacts/stft/sample_spectrogram_epoch_{epoch+1}.png"
@@ -123,16 +121,16 @@ def plot_losses(losses, epoch):
     print(f"Saved loss curve to {save_path}")
 
 
-def plot_stft(stft, title="STFT"):
+def plot_stft(stft, dir="STFT"):
     if stft.dim() == 3: 
         stft = stft[0]  
     plt.figure(figsize=(10, 5))
     plt.imshow(torch.abs(stft).log1p().numpy(), aspect='auto', origin='lower', cmap='magma')
     plt.colorbar(label="Magnitude (log scale)")
-    plt.title(title)
+    # plt.title()
     plt.xlabel("Time Frames")
     plt.ylabel("Frequency Bins")
-    plt.show()
+    plt.savefig(dir)
 
 
 """
@@ -166,9 +164,10 @@ def save_model(model, optimizer, epoch, path):
 
 def load_model(model, optimizer, path):
     if os.path.exists(path):
-        checkpoint = torch.load(path)
+        checkpoint = torch.load(path, map_location=torch.device('cpu'))
         model.load_state_dict(checkpoint['model_state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        if optimizer is not None and 'optimizer_state_dict' in checkpoint:
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         return checkpoint['epoch']
     return 0
 
