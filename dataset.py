@@ -22,7 +22,7 @@ class GetDataset:
     Have hardcoded sample rate to specifically output time bins that are powers of 2...
     """
 
-    def __init__(self, root="data/", url="train-clean-100", sample_rate=16000, n_fft=254, hop_length=64, win_length=128, max_length_seconds=1, device="cpu"):
+    def __init__(self, root="data/", url="train-clean-100", sample_rate=16000, n_fft=254, hop_length=32, win_length=128, max_length_seconds=1, device="cpu"):
         os.makedirs(root, exist_ok=True)
         # make more data
         self.dataset = LIBRISPEECH(root=root, url=url, download=True)
@@ -33,7 +33,7 @@ class GetDataset:
         self.hop_length = hop_length
         self.win_length = win_length
         # hard code sample length so that stft has power of 2 time bins... 
-        self.max_length = max_length_seconds * sample_rate + (6 * hop_length) - 1 
+        self.max_length = int(max_length_seconds * sample_rate) + (12 * hop_length) - 1 
         self.max_length_seconds = max_length_seconds
         # NORMALISATION PARAMS
         self.alpha = 0.5
@@ -106,9 +106,9 @@ class GetDataset:
 
         return spectrogram, noised_spectrogram, mask_spectrogram
 
-    def get_dataloader(self, batch_size=32, shuffle=True):
-        clamped = Subset(self, range(256))
-        return DataLoader(clamped, batch_size=batch_size, shuffle=shuffle)
+    def get_dataloader(self, batch_size=16, shuffle=True):
+        #clamped = Subset(self, range(256))
+        #return DataLoader(clamped, batch_size=batch_size, shuffle=shuffle)
         return DataLoader(self, batch_size=batch_size, shuffle=shuffle)
 
     def plot_spectrogram(self, spectrogram, title="Spectrogram"):
@@ -244,7 +244,7 @@ class GetDataset:
         mask = sampled_magnitude > threshold
         # Combine sampled magnitude with noisy input phase where mask is True
         # reconstructed_complex = torch.polar(sampled_magnitude, noisy_phase * mask)
-        reconstructed_complex = torch.polar(sampled_magnitude, noisy_phase * mask)
+        reconstructed_complex = torch.polar(sampled_magnitude, noisy_phase)
 
         return self.istft(reconstructed_complex)
 
@@ -256,7 +256,7 @@ class GetDataset:
         ** Repeating a lot of code from __getitem__() here **
         """
         # again hard code time bins to be power of 2...
-        length = self.sample_rate * 4 + (self.hop_length * 23)  # 4 second test batches?
+        length = self.sample_rate * 2 + (self.hop_length * 23)  # 4 second test batches?
         # indices
         inds = [random.randint(0, len(self.dataset)) for _ in range(batch_size)]
         inputs = []

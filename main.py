@@ -47,7 +47,7 @@ def main():
     print(f"Total Model Parameters: {total_params:,}")
 
     # Load previous checkpoint if exists
-    model_path = f"checkpoints/vector_field_126_freq_diffnorm.pth"
+    model_path = f"checkpoints/vector_field.pth"
     start_epoch = utils.load_model(vector_field_net, optimizer, model_path)
     losses = []
 
@@ -79,6 +79,8 @@ def main():
         if epoch > 5:
             utils.plot_losses(losses, epoch)
     
+        utils.save_model(vector_field_net, optimizer, (epoch + 1), model_path)
+
         # Sample some longer audio segments and test network.    
         t, b = dataset.get_test_batch(batch_size=3)
         b = dataset.complex_to_real(b).to(device)
@@ -88,7 +90,6 @@ def main():
         utils.save_sample(dataset, sampler, epoch, b, t)
         vector_field_net.train()
 
-        utils.save_model(vector_field_net, optimizer, (epoch + 1), model_path)
 
 if __name__ == "__main__":
     main()

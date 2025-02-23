@@ -18,7 +18,7 @@ class Network(nn.Module):
 
     """
 
-    def __init__(self, input_shape, base_channels=128, embedding_dim= 256, n_residual_blocks=6, n_att_blocks=0, device="cpu"):
+    def __init__(self, input_shape, base_channels=128, embedding_dim= 512, n_residual_blocks=6, n_att_blocks=0, device="cpu"):
         super().__init__()
 
         self.device = torch.device(device)
@@ -26,7 +26,8 @@ class Network(nn.Module):
         self.base_channels = base_channels  # How many channels after initial conv
         self.embedding_dim = embedding_dim  # time embedding dim.
         self.time_layer = nn.Linear(self.embedding_dim, self.embedding_dim).to(self.device)
-        self.initial_conv = nn.Conv2d(2, base_channels, kernel_size=3, padding=1).to(self.device)
+        self.initial_conv = nn.Conv2d(2, base_channels, kernel_size=5, padding=2).to(self.device)
+
 
         # encoder modules
         enc_blocks = []
@@ -49,7 +50,7 @@ class Network(nn.Module):
 
         # Bottleneck
         self.bottleneck = ResidualBlock(channels, channels).to(self.device)
-        self.attention = SelfAttention(channels).to(self.device)
+        # self.attention = SelfAttention(channels).to(self.device)
         self.norm_bottleneck = nn.BatchNorm2d(channels).to(self.device)
 
         # Decoder modules
@@ -72,7 +73,7 @@ class Network(nn.Module):
         self.attention_dec = nn.ModuleList(attention_dec)
 
         # Final Convolution
-        self.final_conv = nn.Conv2d(base_channels, 2, kernel_size=3, padding=1).to(self.device)
+        self.final_conv = nn.Conv2d(base_channels, 2, kernel_size=5, padding=2).to(self.device)
 
     def forward(self, x, t):
         x = x.to(self.device)
@@ -98,14 +99,14 @@ class Network(nn.Module):
         # Bottleneck
         x = checkpoint.checkpoint(self.bottleneck, x, use_reentrant = False)
         x = self.norm_bottleneck(x)
-        x = checkpoint.checkpoint(self.attention, x, use_reentrant = False)
+        # x = checkpoint.checkpoint(self.attention, x, use_reentrant = False)
 
         # Decoder path
         for block, norm, attn, up, skip in zip(self.dec_blocks, self.norm_layers_dec, self.attention_dec, self.upsample, reversed(skips)):
             x = up(x)
             x = torch.cat([x, skip], dim=1) 
-            # x = checkpoint.checkpoint(block, x, use_reentrant = False)
-            x = block(x)            
+            x = checkpoint.checkpoint(block, x, use_reentrant = False)
+            #x = block(x)            
             x = norm(x)
             if attn:
                 # x = checkpoint.checkpoint(attn, x, use_reentrant = False)
@@ -127,8 +128,8 @@ class Network(nn.Module):
 class ResidualBlock(nn.Module):
     def __init__(self, in_channels, out_channels):
         super().__init__()
-        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
-        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=5, padding=2)
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=5, padding=2)
         # Skip connection must also adjust channels
         self.skip = nn.Conv2d(in_channels, out_channels, kernel_size=1) if in_channels != out_channels else nn.Identity()
         self.relu = nn.ReLU()
