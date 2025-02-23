@@ -2,6 +2,8 @@
 
 Follow these steps to correctly set up and run the model on a university system.
 
+NOTE: Model may need to be run on cuda servers with current number of parameters and batch size. 
+
 ## Extract the Code Directory
 
 Ensure the `code/` directory is extracted from the provided archive:
@@ -42,7 +44,7 @@ pip3 install -r requirements.txt
 
 To use the model trained for 70 epochs, download the checkpoint from:
 
-[Download Model (.pth)](INSERT_GOOGLE_DRIVE_LINK_HERE)
+[Download Model (.pth)](https://drive.google.com/file/d/1UNCgujhKBsmm_FISzjx0-yHwcGR21787/view?usp=sharing)
 
 Once downloaded, place it inside the `checkpoints/` directory:
 
