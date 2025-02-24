@@ -4,7 +4,7 @@ import torch.utils.data
 import torchaudio
 from dataset import GetDataset
 from interpolant import Interpolant
-from network import Network
+from updated_network import Network
 from sampler import StochasticSampler
 import utils
 
@@ -25,7 +25,7 @@ def main():
     
     # Load dataset and dataloader
     dataset = GetDataset("data/", device=device)
-    dataloader = dataset.get_dataloader(batch_size=32)
+    dataloader = dataset.get_dataloader(batch_size=1)
     dataset.print_info()
     
     # Initialize model, interpolant, and sampler
@@ -38,7 +38,7 @@ def main():
     print(f"Total Model Parameters: {total_params:,}")
     
     # Load model checkpoint if available
-    model_path = "checkpoints/vector_field.pth"
+    model_path = "checkpoints/vector_field_new_net.pth"
     start_epoch = utils.load_model(vector_field_net, optimizer, model_path)
     losses = []
     
