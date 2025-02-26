@@ -7,7 +7,7 @@ class Network(nn.Module):
     """
     U-Net style network with residual blocks, attention, and time embedding.
     """
-    def __init__(self, input_shape, input_channels=3, base_channels=32, embedding_dim=256, n_residual_blocks=5, n_att_blocks=0, down_samples=5, channel_increases=5, device="cpu"):
+    def __init__(self, input_shape, input_channels=2, base_channels=32, embedding_dim=256, n_residual_blocks=6, n_att_blocks=0, down_samples=6, channel_increases=6, device="cpu"):
         super().__init__()
 
         assert n_residual_blocks % down_samples == 0, "The down_samples should be a factor of n_residual_blocks"

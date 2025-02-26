@@ -25,7 +25,7 @@ def main():
     
     # Load dataset and dataloader
     dataset = GetDataset("data/", device=device)
-    dataloader = dataset.get_dataloader(batch_size=1)
+    dataloader = dataset.get_dataloader(batch_size=32)
     dataset.print_info()
     
     # Initialize model, interpolant, and sampler
@@ -43,7 +43,7 @@ def main():
     losses = []
     
     # Training loop
-    for epoch in range(start_epoch, start_epoch + 1):
+    for epoch in range(start_epoch, start_epoch + 10):
         epoch_loss = 0.0
         for b, batch in enumerate(dataloader):
             optimizer.zero_grad()
