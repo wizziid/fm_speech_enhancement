@@ -7,7 +7,7 @@ class Network(nn.Module):
     """
     U-Net style network with residual blocks, attention, and time embedding.
     """
-    def __init__(self, input_shape, input_channels=3, base_channels=128, embedding_dim=256, n_residual_blocks=5, n_att_blocks=0, down_samples=5, channel_increases=5, device="cpu"):
+    def __init__(self, input_shape, input_channels=3, base_channels=32, embedding_dim=256, n_residual_blocks=5, n_att_blocks=0, down_samples=5, channel_increases=5, device="cpu"):
         super().__init__()
 
         assert n_residual_blocks % down_samples == 0, "The down_samples should be a factor of n_residual_blocks"
@@ -36,8 +36,8 @@ class Network(nn.Module):
         channels = base_channels
         for i in range(n_residual_blocks):
             
-            down_sample = (i+1) % self.down_samples == 0  
-            increase_channels = (i+1) % self.channel_increases == 0
+            down_sample = (i+1) % (self.n_residual_blocks/self.down_samples) == 0  
+            increase_channels = (i+1) % (self.n_residual_blocks/self.channel_increases) == 0
             add_attention = i >= (self.n_residual_blocks - self.n_att_blocks)
 
             next_channels = channels * 2 if increase_channels else channels
@@ -59,8 +59,8 @@ class Network(nn.Module):
         dec_blocks, norm_layers_dec, attention_dec, upsample_layers = [], [], [], []
         for i in range(n_residual_blocks):
 
-            up_sample = (i) % self.down_samples == 0  
-            decrease_channels = (i) % self.channel_increases == 0
+            up_sample = (i) % (self.n_residual_blocks/self.down_samples) == 0  
+            decrease_channels = (i) % (self.n_residual_blocks/self.channel_increases) == 0
             add_attention = i < self.n_att_blocks
 
             next_channels = channels // 2 if decrease_channels else channels
@@ -80,8 +80,8 @@ class Network(nn.Module):
     def forward(self, x, t):
         x, t = x.to(self.device), t.to(self.device).reshape(-1, 1)
 
-        embedding = self.time_embedding(t)  # [batch, embedding_dim]
-        embedding = self.activation(self.time_layer(embedding))  # [batch, embedding_dim]
+        embedding = self.time_embedding(t)  
+        embedding = self.activation(self.time_layer(embedding))  
 
         skips = []
         x = self.initial_conv(x)
