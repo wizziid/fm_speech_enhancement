@@ -76,7 +76,40 @@ class Network(nn.Module):
         self.attention_dec = nn.ModuleList(attention_dec)
         self.final_conv = nn.Conv2d(base_channels, input_channels, kernel_size=3, padding=1).to(self.device)
 
-    
+    def forward(self, x, t):
+        x, t = x.to(self.device), t.to(self.device).reshape(-1, 1)
+
+        # Compute time embedding with correct dimension
+        embedding = self.time_embedding(t)  
+        embedding = self.activation(self.time_layer(embedding)) 
+        embedding = embedding.view(-1, self.embedding_dim, 1, 1) 
+        skips = []
+        x = self.initial_conv(x)
+        for block, norm, attn, down in zip(self.enc_blocks, self.norm_layers_enc, self.attention_enc, self.downsample):
+            x = torch.cat([x, embedding.expand(-1, -1, x.shape[2], x.shape[3])], dim=1)
+            x = block(x)
+            x = norm(x)
+            if attn: x = attn(x)
+            skips.append(x)
+            if down: x = down(x)
+            
+        x = self.bottleneck(x)
+        x = self.norm_bottleneck(x)
+
+        for block, norm, attn, up, skip in zip(self.dec_blocks, self.norm_layers_dec, self.attention_dec, self.upsample, reversed(skips)):
+            if up: x = up(x)
+            x = torch.cat([x, skip], dim=1)
+            x = torch.cat([x, embedding.expand(-1, -1, x.shape[2], x.shape[3])], dim=1) 
+            x = block(x)
+            x = norm(x)
+            if attn: x = attn(x)
+
+        return self.final_conv(x)
+
+
+
+
+    """    
     def forward(self, x, t):
         x, t = x.to(self.device), t.to(self.device).reshape(-1, 1)
         embedding = self.time_embedding(t)
@@ -106,6 +139,7 @@ class Network(nn.Module):
             if attn: x = attn(x)
         
         return self.final_conv(x)
+    """
 
     def time_embedding(self, t):
         batch_size = t.shape[0]
